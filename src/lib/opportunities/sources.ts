@@ -1,0 +1,73 @@
+/** Reviewed official guidance. No MBS fee, benefit or entitlement is encoded here. */
+export const reviewSources = {
+  costs: {
+    url: "https://medicalcostsfinder.health.gov.au/guide-to-costs/",
+    publisher: "Australian Government Department of Health, Disability and Ageing",
+    accessed: "2026-10-11", effectiveDate: null,
+    supports: "Patients can ask specialists for written estimates, other clinician costs and likely MBS items, and ask insurers and hospitals about cover and extra costs.",
+    limits: "General guidance only; no personal price, entitlement or discount is established.",
+  },
+  gap: {
+    url: "https://privatehealth.gov.au/dynamic/insurer/gapdoctors",
+    publisher: "Commonwealth Ombudsman, PrivateHealth.gov.au",
+    accessed: "2026-10-11", effectiveDate: null,
+    supports: "Doctors decide case by case whether to use an insurer's gap arrangement; patients should check with doctor and insurer.",
+    limits: "No participation or insurer benefit is assumed for a particular treatment; this page does not require doctors to join.",
+  },
+  consent: {
+    url: "https://www.ombudsman.gov.au/__data/assets/pdf_file/0016/35611/Doctors-Bill-DL-Fyler-Web.pdf",
+    publisher: "Commonwealth Ombudsman",
+    accessed: "2026-10-11", effectiveDate: null,
+    supports: "For a higher-than-expected bill, first ask the doctor to explain charges; the publication also discusses payment difficulty and asking for written responses.",
+    limits: "The publication is older and provides general consumer guidance, not a determination that a charge is invalid or a payment-plan entitlement.",
+  },
+  informedConsentPage: {
+    url: "https://www.ombudsman.gov.au/publications-and-news-pages/publication-pages/brochures-and-factsheets/factsheets/private-health-insurance/informed-financial-consent",
+    publisher: "Commonwealth Ombudsman",
+    accessed: "2026-10-11", effectiveDate: null,
+    supports: "Official indexed text repeats the advice to ask providers about a bill that is much higher than expected.",
+    limits: "Direct page retrieval timed out on 11 October 2026, so executable bill rules cite the separately verified official Doctors’ Bills PDF.",
+  },
+  insurer: {
+    url: "https://www.ombudsman.gov.au/complaints/private-health-insurance-complaints",
+    publisher: "Commonwealth Ombudsman",
+    accessed: "2026-10-11", effectiveDate: null,
+    supports: "Private health insurance complaints can concern benefits and gap arrangements; patients should first try to resolve the matter with the insurer.",
+    limits: "The Ombudsman cannot assess unrelated clinical care and does not guarantee a particular outcome.",
+  },
+  providerComplaint: {
+    url: "https://www.hccc.nsw.gov.au/contact-us",
+    publisher: "NSW Health Care Complaints Commission",
+    accessed: "2026-10-11", effectiveDate: null,
+    supports: "The NSW HCCC can advise on complaints about NSW health practitioners and services.",
+    limits: "Its scope for fees is case dependent; it does not guarantee a refund or fee change. NSW only.",
+  },
+  publicHospital: {
+    url: "https://www.health.nsw.gov.au/patientconcerns/Pages/feedback.aspx",
+    publisher: "NSW Health",
+    accessed: "2026-10-11", effectiveDate: "2026-02-26",
+    supports: "For NSW public health service complaints, contact staff or the hospital/health service, with independent support available.",
+    limits: "NSW only; no mandatory deadline or outcome is inferred.",
+  },
+  mbs: {
+    url: "https://www.mbsonline.gov.au/",
+    publisher: "Australian Government Department of Health, Disability and Ageing",
+    accessed: "2026-10-11", effectiveDate: null,
+    supports: "The MBS lists Medicare-subsidised services and changes over time.",
+    limits: "No schedule fee or patient eligibility is inferred from a code in this engine.",
+  },
+  mbsDownloads: {
+    url: "https://www.mbsonline.gov.au/internet/mbsonline/publishing.nsf/Content/downloads",
+    publisher: "Australian Government Department of Health, Disability and Ageing",
+    accessed: "2026-10-11", effectiveDate: null,
+    supports: "MBS historical and dated download files are listed.",
+    limits: "The page includes November 2026 files as of 11 October 2026; future-effective files are never used for current calculations.",
+  },
+  privacy: {
+    url: "https://www.oaic.gov.au/privacy/australian-privacy-principles/read-the-australian-privacy-principles",
+    publisher: "Office of the Australian Information Commissioner",
+    accessed: "2026-10-11", effectiveDate: null,
+    supports: "The Australian Privacy Principles cover collection, use, disclosure and security of personal information.",
+    limits: "The local synthetic demo does not establish production privacy compliance.",
+  },
+} as const;

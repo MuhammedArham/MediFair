@@ -1,0 +1,956 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum CaseStatus {
+  DRAFT
+  REQUESTING_QUOTES
+  COMPARING
+  NEGOTIATING
+  CLOSED
+}
+
+enum Laterality {
+  LEFT
+  RIGHT
+  UNSPECIFIED
+}
+
+enum MbsItemStatus {
+  ILLUSTRATIVE
+  CLINICIAN_CONFIRMED
+  PROVIDER_CONFIRMED
+  UNKNOWN
+}
+
+enum MedicareEligibility {
+  YES
+  NO
+  UNKNOWN
+}
+
+enum ReferralStatus {
+  REFERRAL
+  TREATMENT_PLAN
+  BOTH
+  NEITHER
+  UNKNOWN
+}
+
+enum PolicyType {
+  HOSPITAL
+  EXTRAS
+  COMBINED
+  UNKNOWN
+}
+
+enum MembershipStatus {
+  ACTIVE
+  INACTIVE
+  UNKNOWN
+}
+
+enum CoverageStatus {
+  UNVERIFIED
+  PENDING
+  PATIENT_REPORTED_CONFIRMED
+  INSURER_CONFIRMED
+  NOT_COVERED
+}
+
+enum ProviderVerificationStatus {
+  DEMO_ONLY
+  UNVERIFIED
+  USER_VERIFIED
+  VERIFIED
+}
+
+enum ProviderSourceType {
+  DEMO
+  VERIFIED_EXTERNAL
+}
+
+enum QuoteRequestStatus {
+  DRAFT
+  APPROVED
+  REJECTED
+  SENT
+  SIMULATED
+  REPLIED
+  CANCELLED
+  FAILED
+}
+
+enum QuoteResponseStatus {
+  NONE
+  COMPLETE_QUOTE
+  INCOMPLETE_QUOTE
+  CONSULTATION_REQUIRED
+  NO_GAP_STATED
+  DISCOUNT_REFUSED
+  REDUCED_QUOTE
+  MORE_INFORMATION_REQUIRED
+  AMBIGUOUS
+}
+
+enum EmailDirection {
+  OUTBOUND
+  INBOUND
+}
+
+enum EmailDeliveryStatus {
+  DRAFT
+  QUEUED
+  SENT
+  DELIVERED
+  RECEIVED
+  BOUNCED
+  FAILED
+  SIMULATED
+}
+
+enum OutboundSendStatus {
+  SENDING
+  SENT
+  AUTH_ERROR
+  DOMAIN_ERROR
+  RATE_LIMITED
+  FAILED
+  UNCERTAIN
+  SIMULATED
+}
+
+enum EmailMatchStatus {
+  MATCHED
+  UNMATCHED
+  PROVIDER_MISMATCH
+}
+
+enum EmailEventType {
+  SENT
+  DELIVERED
+  BOUNCED
+  RECEIVED
+  FAILED
+}
+
+enum DocumentKind {
+  QUOTE
+  INVOICE
+  OTHER
+}
+
+enum MedicalDocumentType {
+  SPECIALIST_ESTIMATE
+  HOSPITAL_QUOTE
+  ANAESTHETIST_QUOTE
+  FINAL_INVOICE
+  BENEFIT_STATEMENT
+  PREVIOUS_ESTIMATE
+  OTHER
+}
+
+enum DocumentAnalysisStatus {
+  COMPLETE
+  MANUAL_REVIEW
+  FAILED
+}
+
+enum DocumentSourceType {
+  DEMO
+  UPLOAD
+  EMAIL
+}
+
+enum QuoteCompleteness {
+  COMPLETE
+  INCOMPLETE
+  UNKNOWN
+}
+
+enum QuoteConfirmationStatus {
+  UNVERIFIED
+  PROVIDER_STATED
+  PATIENT_VERIFIED
+}
+
+enum ExtractionStatus {
+  COMPLETE
+  UNSUPPORTED
+  FAILED
+}
+
+enum AIProviderMode {
+  MOCK_AI
+  OPENAI
+}
+
+enum CostCategory {
+  SURGEON
+  ANAESTHETIST
+  HOSPITAL
+  THEATRE
+  ACCOMMODATION
+  DEVICES
+  MEDICINES
+  EXCESS
+  CO_PAYMENT
+  MEDICARE_BENEFIT
+  INSURER_BENEFIT
+  OTHER
+}
+
+enum Payer {
+  PATIENT
+  MEDICARE
+  INSURER
+  PROVIDER
+  UNKNOWN
+}
+
+enum OpportunityType {
+  ITEMISATION
+  GAP_SCHEME
+  COVERAGE_CHECK
+  BILL_CORRECTION
+  PAYMENT_PLAN
+  OTHER
+}
+
+enum Confidence {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum OpportunityStatus {
+  PROPOSED
+  PURSUED
+  RESOLVED
+  DISMISSED
+}
+
+enum ReviewCategory {
+  MISSING_ITEMISATION
+  GAP_COVER_ENQUIRY
+  SPECIALIST_FEE_NEGOTIATION
+  FINANCIAL_HARDSHIP
+  QUOTE_VS_INVOICE
+  POSSIBLE_BILLING_ERROR
+  INSURANCE_COVERAGE_REVIEW
+  COMPLAINT_PATHWAY
+}
+
+enum ComplaintParty {
+  INSURER
+  PROVIDER
+  PUBLIC_HOSPITAL
+}
+
+enum ReviewVerificationStatus {
+  SOURCE_VERIFIED
+  NEEDS_HUMAN_REVIEW
+}
+
+enum NegotiationStatus {
+  DRAFT
+  AWAITING_APPROVAL
+  SIMULATED_SENT
+  SENT
+  AWAITING_RESPONSE
+  NEEDS_CLARIFICATION
+  COUNTEROFFERED
+  ACCEPTED
+  REJECTED
+  CLOSED
+  APPROVED
+  AGREED
+}
+
+enum NegotiationRequestStatus {
+  DRAFT
+  APPROVED
+  REJECTED
+  SENDING
+  SIMULATED
+  SENT
+  FAILED
+  UNCERTAIN
+}
+
+enum AuditAction {
+  CASE_CREATED
+  CASE_UPDATED
+  PRACTICES_SELECTED
+  PRACTICE_ADDED
+  PRACTICE_UPDATED
+  CONSENT_GRANTED
+  CONSENT_WITHDRAWN
+  REQUEST_APPROVED
+  REQUEST_DRAFTED
+  REQUEST_EDITED
+  REQUEST_REJECTED
+  SEND_CLAIMED
+  SEND_FAILED
+  MESSAGE_SENT
+  MESSAGE_SIMULATED
+  INBOUND_RECEIVED
+  INBOUND_UNMATCHED
+  MESSAGE_READ
+  QUOTE_ADDED
+  QUOTE_REVISED
+  QUOTE_EXTRACTION_COMPLETED
+  QUOTE_EXTRACTION_CORRECTED
+  QUOTE_EVIDENCE_CONFIRMED
+  QUOTE_SCOPE_CONFIRMED
+  DOCUMENT_UPLOADED
+  DOCUMENT_REVIEWED
+  DOCUMENT_DELETED
+  DOCUMENT_OPPORTUNITY_ADDED
+  NEGOTIATION_UPDATED
+  DEMO_RESET
+}
+
+enum AuditActor {
+  PATIENT
+  PROVIDER
+  SYSTEM
+}
+
+model PatientProfile {
+  id                 String             @id @default(cuid())
+  displayName        String
+  email              String?            @unique
+  isFictional        Boolean            @default(false)
+  consentGivenAt     DateTime?
+  consentScope       String?
+  consentWithdrawnAt DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  cases              Case[]
+  insuranceProfiles  InsuranceProfile[]
+  approvedRequests   QuoteRequest[]     @relation("RequestApprover")
+  approvedNegotiationRequests NegotiationRequest[] @relation("NegotiationRequestApprover")
+  auditEvents        AuditEvent[]
+}
+
+model InsuranceProfile {
+  id                         String           @id @default(cuid())
+  patientProfileId           String
+  policyLabel                String
+  insurerName                String?
+  policyType                 PolicyType       @default(UNKNOWN)
+  hospitalCoverTier          String?
+  policyDetails              String?
+  membershipStatus           MembershipStatus @default(UNKNOWN)
+  knownExcessCents           Int?
+  knownCopaymentCents        Int?
+  coverageVerificationStatus CoverageStatus   @default(UNVERIFIED)
+  coverageVerifiedAt         DateTime?
+  isFictional                Boolean          @default(false)
+  createdAt                  DateTime         @default(now())
+  updatedAt                  DateTime         @updatedAt
+  patientProfile             PatientProfile   @relation(fields: [patientProfileId], references: [id], onDelete: Restrict)
+  cases                      Case[]
+
+  @@unique([patientProfileId, policyLabel])
+  @@index([insurerName])
+}
+
+model SourceReference {
+  id              String        @id @default(cuid())
+  url             String
+  publisher       String
+  title           String
+  publicationDate DateTime?
+  effectiveDate   DateTime?
+  effectiveNote   String?
+  retrievedAt     DateTime
+  evidenceNotes   String
+  mbsItemNumber   String?
+  isOfficial      Boolean       @default(true)
+  cases           Case[]
+  opportunities   Opportunity[]
+
+  @@unique([url, retrievedAt])
+  @@index([mbsItemNumber])
+}
+
+model Case {
+  id                   String                  @id @default(cuid())
+  patientProfileId     String
+  insuranceProfileId   String?
+  sourceReferenceId    String?
+  title                String
+  procedureName        String
+  medicalSpecialty     String?
+  laterality           Laterality              @default(UNSPECIFIED)
+  referralStatus       ReferralStatus          @default(UNKNOWN)
+  medicareEligibility  MedicareEligibility     @default(UNKNOWN)
+  clinicianConfirmedAt DateTime?
+  mbsItemNumber        String?
+  mbsItemStatus        MbsItemStatus           @default(UNKNOWN)
+  suburb               String
+  state                String
+  postcode             String
+  status               CaseStatus              @default(DRAFT)
+  isFictional          Boolean                 @default(false)
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
+  patientProfile       PatientProfile          @relation(fields: [patientProfileId], references: [id], onDelete: Restrict)
+  insuranceProfile     InsuranceProfile?       @relation(fields: [insuranceProfileId], references: [id], onDelete: SetNull)
+  sourceReference      SourceReference?        @relation(fields: [sourceReferenceId], references: [id], onDelete: SetNull)
+  quoteRequests        QuoteRequest[]
+  emailMessages        EmailMessage[]
+  outboundSends        OutboundSend[]
+  documents            Document[]
+  documentOpportunities BillReviewOpportunity[]
+  quotes               Quote[]
+  negotiations         Negotiation[]
+  negotiationRequests  NegotiationRequest[]
+  auditEvents          AuditEvent[]
+  preference           CasePreference?
+  selectedProviders    CaseProviderSelection[]
+  manualProviders      Provider[]              @relation("CaseManualProviders")
+  reviewPreference     CaseReviewPreference?
+  complaints           CaseComplaint[]
+  reviewOpportunities  ReviewOpportunity[]
+
+  @@index([patientProfileId, status])
+  @@index([postcode])
+}
+
+model CasePreference {
+  id                    String   @id @default(cuid())
+  caseId                String   @unique
+  preferredLocation     String
+  travelDistanceKm      Int?
+  budgetCents           Int?
+  preferredProviderName String?
+  preferredHospitalName String?
+  accessibilityNotes    String?
+  languagePreference    String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  case                  Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+}
+
+model Hospital {
+  id           String             @id @default(cuid())
+  name         String
+  suburb       String
+  state        String
+  postcode     String
+  isFictional  Boolean            @default(false)
+  associations ProviderHospital[]
+
+  @@unique([name, postcode])
+}
+
+model Provider {
+  id                   String                     @id @default(cuid())
+  practiceName         String
+  medicalSpecialty     String?
+  sourceType           ProviderSourceType         @default(DEMO)
+  websiteUrl           String?
+  email                String?                    @unique
+  phone                String?
+  suburb               String
+  state                String
+  postcode             String
+  contactSource        String
+  contactSourceUrl     String?
+  reportedHospitalName String?
+  ownerCaseId          String?
+  verifiedByUserAt     DateTime?
+  verificationStatus   ProviderVerificationStatus @default(UNVERIFIED)
+  verifiedAt           DateTime?
+  isFictional          Boolean                    @default(false)
+  createdAt            DateTime                   @default(now())
+  updatedAt            DateTime                   @updatedAt
+  hospitals            ProviderHospital[]
+  ownerCase            Case?                      @relation("CaseManualProviders", fields: [ownerCaseId], references: [id], onDelete: Cascade)
+  selectedForCases     CaseProviderSelection[]
+  quoteRequests        QuoteRequest[]
+  emailMessages        EmailMessage[]
+  outboundSends        OutboundSend[]
+  documents            Document[]
+  quotes               Quote[]
+  negotiations         Negotiation[]
+  negotiationRequests  NegotiationRequest[]
+  reviewOpportunities  ReviewOpportunity[]
+
+  @@unique([practiceName, postcode])
+  @@index([suburb, state])
+  @@index([ownerCaseId, sourceType])
+}
+
+model CaseProviderSelection {
+  caseId     String
+  providerId String
+  selectedAt DateTime @default(now())
+  case       Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  provider   Provider @relation(fields: [providerId], references: [id], onDelete: Restrict)
+
+  @@id([caseId, providerId])
+  @@index([providerId])
+}
+
+model ProviderHospital {
+  providerId String
+  hospitalId String
+  provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  hospital   Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+
+  @@id([providerId, hospitalId])
+}
+
+model QuoteRequest {
+  id                  String             @id @default(cuid())
+  caseId              String
+  providerId          String
+  requestVersion      Int                @default(1)
+  recipientEmail      String
+  subject             String
+  body                String
+  status              QuoteRequestStatus @default(DRAFT)
+  quoteResponseStatus QuoteResponseStatus @default(NONE)
+  approvedAt          DateTime?
+  approvedById        String?
+  approvedContentHash String?
+  sentAt              DateTime?
+  isSimulation        Boolean            @default(false)
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  case                Case               @relation(fields: [caseId], references: [id], onDelete: Restrict)
+  provider            Provider           @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  approvedBy          PatientProfile?    @relation("RequestApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  messages            EmailMessage[]
+  outboundSend        OutboundSend?
+  auditEvents         AuditEvent[]
+
+  @@unique([caseId, providerId, requestVersion])
+  @@index([status, createdAt])
+}
+
+model OutboundSend {
+  id                  String             @id @default(cuid())
+  quoteRequestId      String             @unique
+  caseId              String
+  providerId          String
+  idempotencyKey      String             @unique
+  replyIdentifier     String             @unique
+  fromEmail           String
+  replyToEmail        String
+  recipientEmail      String
+  subject             String
+  body                String
+  approvedContentHash String
+  status              OutboundSendStatus @default(SENDING)
+  providerMessageId   String?            @unique
+  errorCode           String?
+  errorSummary        String?
+  sentAt              DateTime?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  quoteRequest        QuoteRequest       @relation(fields: [quoteRequestId], references: [id], onDelete: Restrict)
+  case                Case               @relation(fields: [caseId], references: [id], onDelete: Restrict)
+  provider            Provider           @relation(fields: [providerId], references: [id], onDelete: Restrict)
+
+  @@index([caseId, status])
+}
+
+model EmailMessage {
+  id                String              @id @default(cuid())
+  caseId            String?
+  providerId        String?
+  quoteRequestId    String?
+  negotiationId     String?
+  direction         EmailDirection
+  fromAddress      String?
+  recipientAddress String?
+  subject           String
+  body              String
+  externalMessageId String?             @unique
+  threadId          String?
+  deliveryStatus    EmailDeliveryStatus
+  matchStatus       EmailMatchStatus?
+  isRead            Boolean             @default(false)
+  attachmentMetadataJson String?
+  sentAt            DateTime?
+  receivedAt        DateTime?
+  isSimulation      Boolean             @default(false)
+  createdAt         DateTime            @default(now())
+  case              Case?               @relation(fields: [caseId], references: [id], onDelete: Restrict)
+  provider          Provider?           @relation(fields: [providerId], references: [id], onDelete: SetNull)
+  quoteRequest      QuoteRequest?       @relation(fields: [quoteRequestId], references: [id], onDelete: SetNull)
+  negotiation       Negotiation?        @relation(fields: [negotiationId], references: [id], onDelete: SetNull)
+  events            EmailEvent[]
+  documents         Document[]
+  quotes            Quote[]
+  quoteExtractions  QuoteExtraction[]
+  costLineItems     CostLineItem[]
+  auditEvents       AuditEvent[]
+
+  @@index([caseId, createdAt])
+  @@index([threadId])
+}
+
+model EmailEvent {
+  id              String         @id @default(cuid())
+  emailMessageId  String
+  providerEventId String         @unique
+  type            EmailEventType
+  occurredAt      DateTime
+  recordedAt      DateTime       @default(now())
+  emailMessage    EmailMessage   @relation(fields: [emailMessageId], references: [id], onDelete: Cascade)
+
+  @@index([emailMessageId, type])
+}
+
+model Document {
+  id             String             @id @default(cuid())
+  caseId         String
+  providerId     String?
+  emailMessageId String?
+  kind           DocumentKind
+  documentType   MedicalDocumentType  @default(OTHER)
+  sourceType     DocumentSourceType
+  fileName       String
+  mimeType       String
+  byteSize       Int?
+  storageKey     String?            @unique
+  sha256         String?
+  isFictional    Boolean            @default(false)
+  createdAt      DateTime           @default(now())
+  case           Case               @relation(fields: [caseId], references: [id], onDelete: Restrict)
+  provider       Provider?          @relation(fields: [providerId], references: [id], onDelete: SetNull)
+  emailMessage   EmailMessage?      @relation(fields: [emailMessageId], references: [id], onDelete: SetNull)
+  quotes         Quote[]
+  costLineItems  CostLineItem[]
+  analysis       DocumentAnalysis?
+  primaryOpportunities BillReviewOpportunity[] @relation("PrimaryBillDocument")
+  comparedOpportunities BillReviewOpportunity[] @relation("ComparedBillDocument")
+  reviewOpportunities ReviewOpportunity[]
+
+  @@index([caseId, kind])
+}
+
+model DocumentAnalysis {
+  id                 String                 @id @default(cuid())
+  documentId         String                 @unique
+  providerMode       AIProviderMode
+  status             DocumentAnalysisStatus
+  pageTextJson       String?
+  resultJson         String?
+  reviewedResultJson String?
+  errorSummary       String?
+  reviewNote         String?
+  reviewedAt         DateTime?
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+  document           Document               @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+}
+
+model BillReviewOpportunity {
+  id                 String             @id @default(cuid())
+  caseId             String
+  primaryDocumentId  String
+  comparedDocumentId String?
+  quoteId            String?
+  title              String
+  detailsJson        String
+  confidence         Confidence
+  status             OpportunityStatus @default(PROPOSED)
+  isFictional        Boolean            @default(true)
+  createdAt          DateTime           @default(now())
+  case               Case               @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  primaryDocument    Document           @relation("PrimaryBillDocument", fields: [primaryDocumentId], references: [id], onDelete: Cascade)
+  comparedDocument   Document?          @relation("ComparedBillDocument", fields: [comparedDocumentId], references: [id], onDelete: SetNull)
+  quote              Quote?             @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  negotiation        Negotiation?
+
+  @@index([caseId, createdAt])
+}
+
+model Quote {
+  id                     String                  @id @default(cuid())
+  caseId                 String
+  providerId             String
+  sourceEmailId          String?
+  sourceDocumentId       String?
+  revisionOfId           String?
+  revisionNumber         Int                     @default(1)
+  procedureName          String
+  issueDate              DateTime
+  expiryDate             DateTime?
+  completeness           QuoteCompleteness       @default(UNKNOWN)
+  confirmationStatus     QuoteConfirmationStatus @default(UNVERIFIED)
+  scopeConfirmedAt       DateTime?
+  scopeEvidenceNote      String?
+  financialEvidenceConfirmedAt DateTime?
+  financialEvidenceNote  String?
+  isFictional            Boolean                 @default(false)
+  notes                  String?
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  case                   Case                    @relation(fields: [caseId], references: [id], onDelete: Restrict)
+  provider               Provider                @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  sourceEmail            EmailMessage?           @relation(fields: [sourceEmailId], references: [id], onDelete: SetNull)
+  sourceDocument         Document?               @relation(fields: [sourceDocumentId], references: [id], onDelete: SetNull)
+  revisionOf             Quote?                  @relation("QuoteRevisions", fields: [revisionOfId], references: [id], onDelete: SetNull)
+  revisions              Quote[]                 @relation("QuoteRevisions")
+  lineItems              CostLineItem[]
+  opportunities          Opportunity[]
+  documentOpportunities  BillReviewOpportunity[]
+  extractions            QuoteExtraction[]
+  negotiationsAsOriginal Negotiation[]           @relation("OriginalQuote")
+  negotiationsAsRevised  Negotiation[]           @relation("RevisedQuote")
+  reviewOpportunities    ReviewOpportunity[]
+
+  @@unique([caseId, providerId, revisionNumber])
+  @@index([caseId, confirmationStatus])
+}
+
+model QuoteExtraction {
+  id                 String           @id @default(cuid())
+  emailMessageId     String           @unique
+  quoteId            String?
+  providerMode       AIProviderMode
+  status             ExtractionStatus
+  resultJson         String?
+  reviewedResultJson String?
+  errorSummary       String?
+  schemaVersion      Int              @default(1)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  reviewedAt         DateTime?
+  emailMessage       EmailMessage     @relation(fields: [emailMessageId], references: [id], onDelete: Cascade)
+  quote              Quote?           @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  evidence           QuoteEvidence[]
+
+  @@index([quoteId, status])
+}
+
+model QuoteEvidence {
+  id           String          @id @default(cuid())
+  extractionId String
+  fieldPath    String
+  excerpt      String
+  startOffset  Int?
+  endOffset    Int?
+  createdAt    DateTime        @default(now())
+  extraction   QuoteExtraction @relation(fields: [extractionId], references: [id], onDelete: Cascade)
+
+  @@index([extractionId, fieldPath])
+}
+
+model CostLineItem {
+  id                         String        @id @default(cuid())
+  quoteId                    String
+  category                   CostCategory
+  description                String
+  payer                      Payer         @default(UNKNOWN)
+  billedAmountCents          Int?
+  knownBenefitCents          Int?
+  patientResponsibilityCents Int?
+  sourceEmailId              String?
+  sourceDocumentId           String?
+  sourceLocator              String?
+  isFictional                Boolean       @default(false)
+  createdAt                  DateTime      @default(now())
+  quote                      Quote         @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  sourceEmail                EmailMessage? @relation(fields: [sourceEmailId], references: [id], onDelete: SetNull)
+  sourceDocument             Document?     @relation(fields: [sourceDocumentId], references: [id], onDelete: SetNull)
+
+  @@index([quoteId, category])
+}
+
+model Opportunity {
+  id                 String            @id @default(cuid())
+  quoteId            String
+  sourceReferenceId  String?
+  type               OpportunityType
+  title              String
+  supportingEvidence String
+  confidence         Confidence
+  status             OpportunityStatus @default(PROPOSED)
+  isFictional        Boolean           @default(false)
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  quote              Quote             @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  sourceReference    SourceReference?  @relation(fields: [sourceReferenceId], references: [id], onDelete: SetNull)
+
+  @@index([quoteId, status])
+}
+
+model CaseReviewPreference {
+  caseId                         String   @id
+  financialHardshipDisclosedAt   DateTime?
+  specialistFeeRequestAt         DateTime?
+  updatedAt                      DateTime @updatedAt
+  case                           Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+}
+
+model CaseComplaint {
+  id          String         @id @default(cuid())
+  caseId      String
+  party       ComplaintParty
+  providerId  String?
+  summary     String
+  documentedAt DateTime      @default(now())
+  resolvedAt  DateTime?
+  isFictional Boolean        @default(true)
+  case        Case           @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  opportunities ReviewOpportunity[]
+
+  @@index([caseId, resolvedAt])
+}
+
+model ReviewOpportunity {
+  id                    String                   @id @default(cuid())
+  stableKey             String                   @unique
+  caseId                String
+  category              ReviewCategory
+  providerId            String?
+  insurerName           String?
+  quoteId               String?
+  documentId            String?
+  complaintId           String?
+  title                 String
+  evidenceJson          String
+  missingInformationJson String
+  ruleTriggered         String
+  officialSourceUrl     String
+  explanation           String
+  responsibleParty      String
+  suggestedQuestionsJson String
+  confidence            Confidence
+  verificationStatus    ReviewVerificationStatus
+  potentialImpactCents  Int?
+  priorityScore         Int
+  status                OpportunityStatus        @default(PROPOSED)
+  requestDraftBody      String?
+  requestDraftCreatedAt DateTime?
+  isFictional           Boolean                  @default(true)
+  createdAt             DateTime                 @default(now())
+  updatedAt             DateTime                 @updatedAt
+  case                  Case                     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  provider              Provider?                @relation(fields: [providerId], references: [id], onDelete: SetNull)
+  quote                 Quote?                   @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  document              Document?                @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  complaint             CaseComplaint?           @relation(fields: [complaintId], references: [id], onDelete: SetNull)
+  negotiations          Negotiation[]
+
+  @@index([caseId, status, priorityScore])
+}
+
+model Negotiation {
+  id                       String            @id @default(cuid())
+  caseId                   String
+  providerId               String
+  originalQuoteId          String
+  revisedQuoteId           String?
+  originalRequest          String
+  counteroffer             String?
+  status                   NegotiationStatus @default(DRAFT)
+  agreedResult             String?
+  agreedPatientAmountCents Int?
+  isSimulation             Boolean           @default(false)
+  billOpportunityId        String?           @unique
+  reviewOpportunityId      String?
+  requestType              String?
+  createdAt                DateTime          @default(now())
+  updatedAt                DateTime          @updatedAt
+  case                     Case              @relation(fields: [caseId], references: [id], onDelete: Restrict)
+  provider                 Provider          @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  originalQuote            Quote             @relation("OriginalQuote", fields: [originalQuoteId], references: [id], onDelete: Restrict)
+  revisedQuote             Quote?            @relation("RevisedQuote", fields: [revisedQuoteId], references: [id], onDelete: SetNull)
+  billOpportunity          BillReviewOpportunity? @relation(fields: [billOpportunityId], references: [id], onDelete: SetNull)
+  reviewOpportunity        ReviewOpportunity? @relation(fields: [reviewOpportunityId], references: [id], onDelete: SetNull)
+  requests                 NegotiationRequest[]
+  responses                NegotiationResponse[]
+  messages                 EmailMessage[]
+  auditEvents              AuditEvent[]
+
+  @@index([caseId, status])
+  @@index([reviewOpportunityId])
+}
+
+model NegotiationRequest {
+  id                  String                   @id @default(cuid())
+  negotiationId       String
+  caseId              String
+  providerId          String
+  version             Int
+  recipientEmail      String
+  recipientVerifiedAt DateTime?
+  subject             String
+  draftBody           String
+  approvedBody        String?
+  approvedContentHash String?
+  approvedAt          DateTime?
+  approvedById        String?
+  status              NegotiationRequestStatus @default(DRAFT)
+  supportingDocumentsJson String             @default("[]")
+  informationDisclosedJson String             @default("[]")
+  reason              String
+  originalPatientGapCents Int?
+  replyIdentifier     String?                 @unique
+  idempotencyKey      String?                 @unique
+  providerMessageId   String?                 @unique
+  sendError           String?
+  sentAt              DateTime?
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+  negotiation         Negotiation              @relation(fields: [negotiationId], references: [id], onDelete: Cascade)
+  case                Case                     @relation(fields: [caseId], references: [id], onDelete: Restrict)
+  provider            Provider                 @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  approvedBy          PatientProfile?          @relation("NegotiationRequestApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+
+  @@unique([negotiationId, version])
+  @@index([caseId, status])
+}
+
+model NegotiationResponse {
+  id               String       @id @default(cuid())
+  negotiationId    String
+  emailMessageId   String       @unique
+  providerMode     AIProviderMode
+  interpretationJson String?
+  interpretationStatus String
+  errorSummary     String?
+  revisedQuoteId   String?
+  createdAt        DateTime     @default(now())
+  negotiation      Negotiation  @relation(fields: [negotiationId], references: [id], onDelete: Cascade)
+
+  @@index([negotiationId, createdAt])
+}
+
+model AuditEvent {
+  id               String          @id @default(cuid())
+  caseId           String
+  patientProfileId String?
+  quoteRequestId   String?
+  emailMessageId   String?
+  negotiationId    String?
+  action           AuditAction
+  actor            AuditActor
+  eventKey         String?         @unique
+  detailsJson      String?
+  occurredAt       DateTime        @default(now())
+  case             Case            @relation(fields: [caseId], references: [id], onDelete: Restrict)
+  patientProfile   PatientProfile? @relation(fields: [patientProfileId], references: [id], onDelete: SetNull)
+  quoteRequest     QuoteRequest?   @relation(fields: [quoteRequestId], references: [id], onDelete: SetNull)
+  emailMessage     EmailMessage?   @relation(fields: [emailMessageId], references: [id], onDelete: SetNull)
+  negotiation      Negotiation?    @relation(fields: [negotiationId], references: [id], onDelete: SetNull)
+
+  @@index([caseId, occurredAt])
+}

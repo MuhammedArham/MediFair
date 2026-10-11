@@ -8,6 +8,8 @@ import { analyseSelectedDocuments, effectiveDocumentResult, listCaseDocuments } 
 import { getDatabaseClient } from "@/lib/db/client";
 import { DeleteDocumentButton, DocumentUploadPanel, SaveBillFindingButton, StartBillNegotiationButton } from "./document-controls";
 
+export const runtime = "nodejs";
+
 const aud = (cents: number | null) => cents === null ? "Not stated" : new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(cents / 100);
 const typeLabel = (value: string) => value.replaceAll("_", " ").toLowerCase();
 

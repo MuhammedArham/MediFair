@@ -3,7 +3,7 @@ import { workspaceAccessAllowed } from "./lib/auth/workspace-access";
 
 export function proxy(request: NextRequest) {
   if (!workspaceAccessAllowed(request.headers)) {
-    return new NextResponse("MediFair AI workspace access required.", { status: 401, headers: { "WWW-Authenticate": 'Basic realm="MediFair AI demo"', "Cache-Control": "no-store" } });
+    return new NextResponse("MediFair AI workspace access required.", { status: 401, headers: { "WWW-Authenticate": 'Basic realm="MediFair AI demo", charset="UTF-8"', "Cache-Control": "no-store" } });
   }
   const origin = request.headers.get("origin");
   if (process.env.NODE_ENV === "production" && request.method !== "GET" && request.method !== "HEAD" && !origin) {

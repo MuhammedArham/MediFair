@@ -14,9 +14,10 @@ export function workspaceAccessAllowed(requestHeaders: Headers, env: NodeJS.Proc
   const password = env.APP_ACCESS_PASSWORD;
   if (!user || !password || password.length < 16) return false;
   const header = requestHeaders.get("authorization");
-  if (!header?.startsWith("Basic ")) return false;
+  const encoded = /^Basic[ \t]+([A-Za-z0-9+/]+={0,2})$/i.exec(header ?? "")?.[1];
+  if (!encoded) return false;
   try {
-    const value = Buffer.from(header.slice(6), "base64").toString("utf8");
+    const value = Buffer.from(encoded, "base64").toString("utf8");
     const colon = value.indexOf(":");
     return colon >= 0 && equal(value.slice(0, colon), user) && equal(value.slice(colon + 1), password);
   } catch { return false; }

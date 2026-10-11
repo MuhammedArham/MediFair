@@ -34,6 +34,12 @@ beforeAll(async () => {
 afterAll(async () => { await db?.$disconnect(); if (directory) await rm(directory, { recursive: true, force: true }); delete process.env.DOCUMENT_STORAGE_DIR; });
 
 describe("private synthetic PDF intake and bill review", () => {
+  it("extracts text from the synthetic original PDF with the Node canvas worker", async () => {
+    const pages = await extractPdfPages(await readFile(fixtureFile("original")));
+    expect(pages).toHaveLength(1);
+    expect(pages[0].text).toContain("Practice: Demo Harbour Eye Practice (fictional)");
+    expect(pages[0].text).toContain("Total provider fees: $5,230.00");
+  });
   it("accepts the five valid fixture PDFs and maps all evidence to extracted pages", async () => {
     const records = await seedSyntheticDocuments("demo-case", db);
     expect(records).toHaveLength(5);

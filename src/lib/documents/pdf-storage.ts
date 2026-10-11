@@ -1,7 +1,6 @@
 import { randomUUID, createHash } from "node:crypto";
 import { mkdir, readFile, realpath, unlink, writeFile } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve } from "node:path";
-import { PDFParse } from "pdf-parse";
 import { del, get, put } from "@vercel/blob";
 import { z } from "zod";
 import type { PageText } from "./schema";
@@ -30,16 +29,22 @@ export function validatePdfUpload(fileName: unknown, mimeType: unknown, bytes: U
 }
 
 export async function extractPdfPages(bytes: Uint8Array): Promise<PageText[]> {
-  const parser = new PDFParse({ data: Buffer.from(bytes) });
   try {
-    const info = await parser.getInfo();
-    if (info.total < 1 || info.total > MAX_PDF_PAGES) throw new DocumentUploadError(`PDFs must contain 1 to ${MAX_PDF_PAGES} pages.`);
-    const parsed = await parser.getText();
-    return parsed.pages.map((page) => ({ page: page.num, text: page.text.slice(0, 100_000) }));
+    // pdf-parse/worker initialises the supported Node canvas before pdf-parse loads.
+    // Keep both imports here so non-document routes never evaluate PDF.js.
+    const { CanvasFactory } = await import("pdf-parse/worker");
+    const { PDFParse } = await import("pdf-parse");
+    const parser = new PDFParse({ data: Buffer.from(bytes), CanvasFactory });
+    try {
+      const info = await parser.getInfo();
+      if (info.total < 1 || info.total > MAX_PDF_PAGES) throw new DocumentUploadError(`PDFs must contain 1 to ${MAX_PDF_PAGES} pages.`);
+      const parsed = await parser.getText();
+      return parsed.pages.map((page) => ({ page: page.num, text: page.text.slice(0, 100_000) }));
+    } finally { await parser.destroy(); }
   } catch (error) {
     if (error instanceof DocumentUploadError) throw error;
     throw new DocumentUploadError("The PDF could not be read. Check that it is not damaged or password protected.");
-  } finally { await parser.destroy(); }
+  }
 }
 
 async function storageRoot() {

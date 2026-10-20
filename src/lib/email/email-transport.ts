@@ -117,7 +117,7 @@ export function createEmailTransport(client?: DatabaseClient): EmailTransport {
   const mode = process.env.EMAIL_TRANSPORT?.trim().toLowerCase() || "mock";
   if (mode === "mock") return new MockEmailTransport(client);
   if (mode === "resend") {
-    const apiKey = process.env.RESEND_API_KEY;
+    const apiKey = process.env.RESEND_API_KEY?.trim();
     if (!apiKey) throw new EmailServiceError("CONFIG_REQUIRED", "RESEND_API_KEY is required for EMAIL_TRANSPORT=resend. Mock mode is not used as a fallback.");
     return new ResendEmailTransport(apiKey, client);
   }

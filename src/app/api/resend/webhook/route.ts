@@ -29,8 +29,8 @@ async function readLimitedBody(request: Request, limit: number) {
 
 export async function POST(request: Request) {
   if ((process.env.EMAIL_TRANSPORT?.trim().toLowerCase() || "mock") !== "resend") return new Response("Resend webhooks are disabled in mock email mode", { status: 404 });
-  const apiKey = process.env.RESEND_API_KEY;
-  const secret = process.env.RESEND_WEBHOOK_SECRET;
+  const apiKey = process.env.RESEND_API_KEY?.trim();
+  const secret = process.env.RESEND_WEBHOOK_SECRET?.trim();
   if (!secret || !apiKey) return new Response("Webhook not configured", { status: 503 });
   const contentLength = Number(request.headers.get("content-length") ?? 0);
   if (contentLength > 1_000_000) return new Response("Webhook too large", { status: 413 });

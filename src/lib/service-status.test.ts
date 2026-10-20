@@ -7,6 +7,13 @@ import { mockQuoteFixtures } from "./ai/mock-quote-fixtures";
 import { responseTemplates } from "./email/simulator-templates";
 afterEach(() => vi.unstubAllEnvs());
 describe("workspace safety and fixture integration", () => {
+  it("recognises configured private Blob OIDC without requiring a static token", () => {
+    expect(serviceStatus({ NODE_ENV: "production", BLOB_STORE_ID: "synthetic-store", VERCEL: "1" }).storageReady).toBe(true);
+    expect(serviceStatus({ NODE_ENV: "production", BLOB_STORE_ID: "synthetic-store", VERCEL_OIDC_TOKEN: "synthetic-credential" }).storageReady).toBe(true);
+    expect(serviceStatus({ NODE_ENV: "production", BLOB_READ_WRITE_TOKEN: "synthetic-credential" }).storageReady).toBe(true);
+    expect(serviceStatus({ NODE_ENV: "production", BLOB_STORE_ID: "synthetic-store" }).storageReady).toBe(false);
+    expect(serviceStatus({ NODE_ENV: "production" }).storageReady).toBe(false);
+  });
   it("defaults to local mocks and never exposes secret values", () => {
     expect(serviceStatus({ NODE_ENV: "test" })).toMatchObject({ email: "mock", ai: "mock", demo: true, emailMissing: [], aiMissing: [] });
     const status = serviceStatus({ NODE_ENV: "test", EMAIL_TRANSPORT: "resend", AI_PROVIDER: "openai", RESEND_API_KEY: "secret-value", OPENAI_API_KEY: "another-secret" });

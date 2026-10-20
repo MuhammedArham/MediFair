@@ -7,7 +7,7 @@ export function serviceStatus(env: NodeJS.ProcessEnv = process.env) {
     emailTestMode: env.RESEND_FROM_EMAIL?.trim().toLowerCase() === "onboarding@resend.dev",
     databaseReady: /^postgres(ql)?:\/\//i.test(env.DATABASE_URL || ""),
     storageMode: env.DOCUMENT_STORAGE || (env.NODE_ENV === "production" ? "vercel-blob" : "local"),
-    storageReady: env.NODE_ENV !== "production" || Boolean(env.BLOB_READ_WRITE_TOKEN),
+    storageReady: env.NODE_ENV !== "production" || Boolean(env.BLOB_READ_WRITE_TOKEN?.trim() || (env.BLOB_STORE_ID?.trim() && (env.VERCEL === "1" || env.VERCEL_OIDC_TOKEN?.trim()))),
     accessReady: env.NODE_ENV !== "production" || Boolean(env.APP_ACCESS_USERNAME && (env.APP_ACCESS_PASSWORD?.length || 0) >= 16),
     emailMissing: email === "mock" ? [] : ["RESEND_API_KEY", "RESEND_FROM_EMAIL", "RESEND_INBOUND_ADDRESS", "RESEND_WEBHOOK_SECRET", "DEMO_ALLOWED_RECIPIENTS", "APP_BASE_URL", ...(env.RESEND_FROM_EMAIL?.trim().toLowerCase() === "onboarding@resend.dev" ? ["RESEND_TEST_RECIPIENT"] : [])].filter((key) => !env[key]?.trim()),
     aiMissing: ai === "mock" ? [] : ["OPENAI_API_KEY", "OPENAI_MODEL"].filter((key) => !env[key]?.trim()),

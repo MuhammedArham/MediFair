@@ -77,8 +77,8 @@ type ReplyThreadContext = {
   provider: { email: string | null; isFictional: boolean };
 };
 
-function threadContext(send: { caseId: string; providerId: string; quoteRequestId: string; replyIdentifier: string; case: ReplyThreadContext["case"]; provider: ReplyThreadContext["provider"] }): ReplyThreadContext {
-  return { caseId: send.caseId, providerId: send.providerId, quoteRequestId: send.quoteRequestId, negotiationId: null, replyIdentifier: send.replyIdentifier, expectedSender: send.provider.email ?? "", case: send.case, provider: send.provider };
+function threadContext(send: { caseId: string; providerId: string; quoteRequestId: string; replyIdentifier: string; recipientEmail: string; case: ReplyThreadContext["case"]; provider: ReplyThreadContext["provider"] }): ReplyThreadContext {
+  return { caseId: send.caseId, providerId: send.providerId, quoteRequestId: send.quoteRequestId, negotiationId: null, replyIdentifier: send.replyIdentifier, expectedSender: send.recipientEmail, case: send.case, provider: send.provider };
 }
 
 export async function ingestInboundEmail(input: unknown, options: { eventId: string; simulated?: boolean; client?: DatabaseClient } ): Promise<InboundResult> {
@@ -124,7 +124,7 @@ export async function ingestInboundEmail(input: unknown, options: { eventId: str
 
   const sender = emailAddress(email.from);
   const expectedSender = outbound?.expectedSender.toLowerCase() ?? "";
-  const matched = Boolean(outbound && outbound.case.isFictional && outbound.case.patientProfile.isFictional && outbound.provider.isFictional === options.simulated && (options.simulated || outbound.case.patientProfile.consentGivenAt && !outbound.case.patientProfile.consentWithdrawnAt));
+  const matched = Boolean(outbound && outbound.case.isFictional && outbound.case.patientProfile.isFictional && outbound.provider.isFictional === Boolean(options.simulated) && outbound.case.patientProfile.consentGivenAt && !outbound.case.patientProfile.consentWithdrawnAt);
   const senderMatches = matched && Boolean(sender && expectedSender && sender === expectedSender);
   const body = safeEmailText(email);
   const subject = email.subject.trim() || "(no subject)";
@@ -167,7 +167,7 @@ export async function ingestInboundEmail(input: unknown, options: { eventId: str
           revisionOfId: latestQuote?.id ?? null, revisionNumber: (latestQuote?.revisionNumber ?? 0) + 1,
           procedureName: caseRecord.procedureName, issueDate: receivedAt,
           completeness: responseStatus === "COMPLETE_QUOTE" ? "UNKNOWN" : "INCOMPLETE",
-          confirmationStatus: "PROVIDER_STATED", isFictional: Boolean(options.simulated),
+          confirmationStatus: "PROVIDER_STATED", isFictional: true,
           notes: "Raw provider reply retained. No fee amounts or patient responsibility were automatically extracted; review the message and confirm each amount.",
         } });
         await tx.auditEvent.create({ data: { caseId: outbound!.caseId, quoteRequestId: outbound!.quoteRequestId, emailMessageId: message.id, action: latestQuote ? "QUOTE_REVISED" : "QUOTE_ADDED", actor: "SYSTEM", eventKey: `quote-from-email:${eventId}`, detailsJson: JSON.stringify({ quoteId: quote.id, completeness: quote.completeness, amountExtraction: "not performed" }) } });
@@ -175,7 +175,7 @@ export async function ingestInboundEmail(input: unknown, options: { eventId: str
       if (attachmentMetadata.length) await tx.document.createMany({ data: attachmentMetadata.map((attachment) => ({
         caseId: outbound!.caseId, providerId: outbound!.providerId, emailMessageId: message.id, kind: "OTHER" as const,
         sourceType: options.simulated ? "DEMO" as const : "EMAIL" as const, fileName: attachment.filename, mimeType: attachment.contentType || "application/octet-stream",
-        byteSize: attachment.size, storageKey: null, sha256: createHash("sha256").update(`${email.providerMessageId}:${attachment.id}`).digest("hex"), isFictional: Boolean(options.simulated),
+        byteSize: attachment.size, storageKey: null, sha256: createHash("sha256").update(`${email.providerMessageId}:${attachment.id}`).digest("hex"), isFictional: true,
       })) });
       await tx.auditEvent.create({ data: { caseId: outbound!.caseId, emailMessageId: message.id, quoteRequestId: outbound!.quoteRequestId, action: options.simulated ? "MESSAGE_SIMULATED" : "INBOUND_RECEIVED", actor: "PROVIDER", eventKey: `inbound:${eventId}`, detailsJson: JSON.stringify({ simulated: Boolean(options.simulated), responseStatus, attachmentCount: attachmentMetadata.length, untrustedContent: true }) } });
       return message;

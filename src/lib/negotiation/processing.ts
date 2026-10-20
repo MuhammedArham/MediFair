@@ -24,13 +24,15 @@ export function revisedQuoteIsComparable(original: ReturnType<typeof parsedExtra
 }
 
 export async function processNegotiationReply(emailMessageId: string, client: DatabaseClient = getDatabaseClient()) {
-  const message = await client.emailMessage.findUniqueOrThrow({ where: { id: emailMessageId }, include: { negotiation: { include: { originalQuote: { include: { extractions: { orderBy: { createdAt: "desc" }, take: 1 } } } } } } });
+  const message = await client.emailMessage.findUniqueOrThrow({ where: { id: emailMessageId }, include: { case: { include: { patientProfile: true } }, negotiation: { include: { originalQuote: { include: { extractions: { orderBy: { createdAt: "desc" }, take: 1 } } } } } } });
   if (!message.negotiation || message.direction !== "INBOUND" || message.matchStatus !== "MATCHED") throw new Error("A matched negotiation reply is required.");
+  const fictional = Boolean(message.case?.isFictional && message.case.patientProfile.isFictional);
+  if (!fictional || !message.case?.patientProfile.consentGivenAt || message.case.patientProfile.consentWithdrawnAt) throw new Error("A consenting fictional case is required.");
   const existing = await client.negotiationResponse.findUnique({ where: { emailMessageId } });
   if (existing) return existing;
   const negotiation = message.negotiation;
   let result;
-  try { result = await createNegotiationResponseProvider().interpret(message.body, message.isSimulation); }
+  try { result = await createNegotiationResponseProvider().interpret(message.body, fictional); }
   catch (error) {
     if (["SIMULATED_SENT", "SENT", "AWAITING_RESPONSE"].includes(negotiation.status)) await client.negotiation.update({ where: { id: negotiation.id }, data: { status: "NEEDS_CLARIFICATION" } });
     return client.negotiationResponse.create({ data: { negotiationId: negotiation.id, emailMessageId, providerMode: (process.env.AI_PROVIDER?.toLowerCase() === "openai" ? "OPENAI" : "MOCK_AI"), interpretationStatus: "FAILED", errorSummary: error instanceof Error ? error.message.slice(0, 300) : "Interpretation failed." } });

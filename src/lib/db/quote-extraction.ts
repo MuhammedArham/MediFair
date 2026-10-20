@@ -10,13 +10,18 @@ export async function processQuoteExtraction(emailMessageId: string, client: Dat
   const id = z.string().trim().min(1).max(100).parse(emailMessageId);
   const message = await client.emailMessage.findUnique({ where: { id }, include: { case: { include: { patientProfile: true } }, provider: true } });
   if (!message || message.direction !== "INBOUND" || message.matchStatus !== "MATCHED" || !message.case || !message.provider) return { status: "UNSUPPORTED" };
+  const fictional = message.case.isFictional && message.case.patientProfile.isFictional;
+  if (!fictional || !message.case.patientProfile.consentGivenAt || message.case.patientProfile.consentWithdrawnAt) return { status: "UNSUPPORTED" };
   const existing = await client.quoteExtraction.findUnique({ where: { emailMessageId: id } });
   if (existing?.status === "COMPLETE" || existing?.status === "UNSUPPORTED") return { status: existing.status, extractionId: existing.id };
 
   let result: ExtractionResult;
   try {
     const provider = createAIProvider();
-    result = await provider.extractQuote({ subject: message.subject, body: message.body, providerName: message.provider.practiceName, isFictional: message.isSimulation && message.case.isFictional && message.case.patientProfile.isFictional });
+    // Transport provenance is independent of data classification. A real Resend
+    // reply can contain a checked-in synthetic fixture; the AI adapter retains
+    // its fixture-only external-transmission gate in demo mode.
+    result = await provider.extractQuote({ subject: message.subject, body: message.body, providerName: message.provider.practiceName, isFictional: fictional });
   } catch (error) {
     const record = await client.quoteExtraction.upsert({
       where: { emailMessageId: id },
@@ -43,7 +48,7 @@ export async function processQuoteExtraction(emailMessageId: string, client: Dat
     let quoteId = quote?.id ?? null;
     if (!quoteId && ["QUOTE", "PARTIAL_QUOTE"].includes(extraction.messageKind)) {
       const latest = await tx.quote.findFirst({ where: { caseId: message.caseId!, providerId: message.providerId! }, orderBy: { revisionNumber: "desc" } });
-      const created = await tx.quote.create({ data: { caseId: message.caseId!, providerId: message.providerId!, sourceEmailId: id, revisionOfId: latest?.id ?? null, revisionNumber: (latest?.revisionNumber ?? 0) + 1, procedureName: message.case!.procedureName, issueDate: message.receivedAt ?? message.createdAt, expiryDate: expiryDate(message.receivedAt ?? message.createdAt, extraction.provider.validityDays), completeness: extraction.missingFees.length || mismatch ? "INCOMPLETE" : "COMPLETE", confirmationStatus: "PROVIDER_STATED", isFictional: message.isSimulation, notes: "Extracted values require human review. See source email and evidence references." } });
+      const created = await tx.quote.create({ data: { caseId: message.caseId!, providerId: message.providerId!, sourceEmailId: id, revisionOfId: latest?.id ?? null, revisionNumber: (latest?.revisionNumber ?? 0) + 1, procedureName: message.case!.procedureName, issueDate: message.receivedAt ?? message.createdAt, expiryDate: expiryDate(message.receivedAt ?? message.createdAt, extraction.provider.validityDays), completeness: extraction.missingFees.length || mismatch ? "INCOMPLETE" : "COMPLETE", confirmationStatus: "PROVIDER_STATED", isFictional: fictional, notes: "Extracted values require human review. See source email and evidence references." } });
       quoteId = created.id;
     } else if (quoteId) {
       await tx.quote.update({ where: { id: quoteId }, data: { expiryDate: expiryDate(message.receivedAt ?? message.createdAt, extraction.provider.validityDays), completeness: extraction.missingFees.length || mismatch ? "INCOMPLETE" : "COMPLETE", confirmationStatus: "PROVIDER_STATED", notes: "Extracted values require human review. See source email and evidence references." } });
@@ -51,10 +56,10 @@ export async function processQuoteExtraction(emailMessageId: string, client: Dat
     if (quoteId) {
       await tx.costLineItem.deleteMany({ where: { quoteId } });
       await tx.costLineItem.createMany({ data: [
-        ...extraction.fees.filter((item) => item.billedAmountCents !== null).map((item) => ({ quoteId: quoteId!, category: categoryMap[item.category], description: item.description, payer: item.payer, billedAmountCents: item.billedAmountCents, sourceEmailId: id, sourceLocator: item.evidence, isFictional: message.isSimulation })),
-        ...(extraction.benefits.medicareCents === null ? [] : [{ quoteId, category: "MEDICARE_BENEFIT" as const, description: "Medicare benefit stated in provider email", payer: "MEDICARE" as const, billedAmountCents: null, knownBenefitCents: extraction.benefits.medicareCents, sourceEmailId: id, sourceLocator: null, isFictional: message.isSimulation }]),
-        ...(extraction.benefits.privateInsurerCents === null ? [] : [{ quoteId, category: "INSURER_BENEFIT" as const, description: "Private insurer benefit stated in provider email", payer: "INSURER" as const, billedAmountCents: null, knownBenefitCents: extraction.benefits.privateInsurerCents, sourceEmailId: id, sourceLocator: null, isFictional: message.isSimulation }]),
-        ...(extraction.insurance.expectedPatientOutOfPocketCents === null ? [] : [{ quoteId, category: "OTHER" as const, description: "Expected patient out-of-pocket stated in provider email", payer: "PATIENT" as const, billedAmountCents: null, patientResponsibilityCents: extraction.insurance.expectedPatientOutOfPocketCents, sourceEmailId: id, sourceLocator: null, isFictional: message.isSimulation }]),
+        ...extraction.fees.filter((item) => item.billedAmountCents !== null).map((item) => ({ quoteId: quoteId!, category: categoryMap[item.category], description: item.description, payer: item.payer, billedAmountCents: item.billedAmountCents, sourceEmailId: id, sourceLocator: item.evidence, isFictional: fictional })),
+        ...(extraction.benefits.medicareCents === null ? [] : [{ quoteId, category: "MEDICARE_BENEFIT" as const, description: "Medicare benefit stated in provider email", payer: "MEDICARE" as const, billedAmountCents: null, knownBenefitCents: extraction.benefits.medicareCents, sourceEmailId: id, sourceLocator: null, isFictional: fictional }]),
+        ...(extraction.benefits.privateInsurerCents === null ? [] : [{ quoteId, category: "INSURER_BENEFIT" as const, description: "Private insurer benefit stated in provider email", payer: "INSURER" as const, billedAmountCents: null, knownBenefitCents: extraction.benefits.privateInsurerCents, sourceEmailId: id, sourceLocator: null, isFictional: fictional }]),
+        ...(extraction.insurance.expectedPatientOutOfPocketCents === null ? [] : [{ quoteId, category: "OTHER" as const, description: "Expected patient out-of-pocket stated in provider email", payer: "PATIENT" as const, billedAmountCents: null, patientResponsibilityCents: extraction.insurance.expectedPatientOutOfPocketCents, sourceEmailId: id, sourceLocator: null, isFictional: fictional }]),
       ] });
     }
     await tx.quoteEvidence.deleteMany({ where: { extraction: { emailMessageId: id } } });
@@ -82,17 +87,18 @@ function expiryDate(issued: Date, days: number | null) { if (days === null) retu
 export async function saveQuoteCorrection(emailMessageId: string, input: unknown, client: DatabaseClient = getDatabaseClient()) {
   const id = z.string().trim().min(1).max(100).parse(emailMessageId);
   const corrected = reviewSchema.parse(input);
-  const extraction = await client.quoteExtraction.findUniqueOrThrow({ where: { emailMessageId: id }, include: { emailMessage: { include: { case: true, provider: true } }, quote: true } });
-  if (!extraction.emailMessage.case?.isFictional || !extraction.emailMessage.isSimulation) throw new Error("Manual review is limited to synthetic case messages.");
+  const extraction = await client.quoteExtraction.findUniqueOrThrow({ where: { emailMessageId: id }, include: { emailMessage: { include: { case: { include: { patientProfile: true } }, provider: true } }, quote: true } });
+  const fictional = Boolean(extraction.emailMessage.case?.isFictional && extraction.emailMessage.case.patientProfile.isFictional);
+  if (!fictional || !extraction.emailMessage.case?.patientProfile.consentGivenAt || extraction.emailMessage.case.patientProfile.consentWithdrawnAt) throw new Error("Manual review is limited to consenting synthetic case messages.");
   return client.$transaction(async (tx) => {
     const saved = await tx.quoteExtraction.update({ where: { emailMessageId: id }, data: { reviewedResultJson: JSON.stringify(corrected), reviewedAt: new Date(), errorSummary: null } });
     if (extraction.quoteId) {
       await tx.costLineItem.deleteMany({ where: { quoteId: extraction.quoteId } });
       await tx.costLineItem.createMany({ data: [
-        ...corrected.fees.filter((item) => item.billedAmountCents !== null).map((item) => ({ quoteId: extraction.quoteId!, category: categoryMap[item.category], description: item.description, payer: item.payer, billedAmountCents: item.billedAmountCents, sourceEmailId: id, sourceLocator: item.evidence, isFictional: extraction.emailMessage.isSimulation })),
-        ...(corrected.benefits.medicareCents === null ? [] : [{ quoteId: extraction.quoteId, category: "MEDICARE_BENEFIT" as const, description: "Medicare benefit stated in reviewed email", payer: "MEDICARE" as const, billedAmountCents: null, knownBenefitCents: corrected.benefits.medicareCents, sourceEmailId: id, sourceLocator: null, isFictional: extraction.emailMessage.isSimulation }]),
-        ...(corrected.benefits.privateInsurerCents === null ? [] : [{ quoteId: extraction.quoteId, category: "INSURER_BENEFIT" as const, description: "Insurer benefit stated in reviewed email", payer: "INSURER" as const, billedAmountCents: null, knownBenefitCents: corrected.benefits.privateInsurerCents, sourceEmailId: id, sourceLocator: null, isFictional: extraction.emailMessage.isSimulation }]),
-        ...(corrected.insurance.expectedPatientOutOfPocketCents === null ? [] : [{ quoteId: extraction.quoteId, category: "OTHER" as const, description: "Patient amount stated in reviewed email", payer: "PATIENT" as const, billedAmountCents: null, patientResponsibilityCents: corrected.insurance.expectedPatientOutOfPocketCents, sourceEmailId: id, sourceLocator: null, isFictional: extraction.emailMessage.isSimulation }]),
+        ...corrected.fees.filter((item) => item.billedAmountCents !== null).map((item) => ({ quoteId: extraction.quoteId!, category: categoryMap[item.category], description: item.description, payer: item.payer, billedAmountCents: item.billedAmountCents, sourceEmailId: id, sourceLocator: item.evidence, isFictional: fictional })),
+        ...(corrected.benefits.medicareCents === null ? [] : [{ quoteId: extraction.quoteId, category: "MEDICARE_BENEFIT" as const, description: "Medicare benefit stated in reviewed email", payer: "MEDICARE" as const, billedAmountCents: null, knownBenefitCents: corrected.benefits.medicareCents, sourceEmailId: id, sourceLocator: null, isFictional: fictional }]),
+        ...(corrected.benefits.privateInsurerCents === null ? [] : [{ quoteId: extraction.quoteId, category: "INSURER_BENEFIT" as const, description: "Insurer benefit stated in reviewed email", payer: "INSURER" as const, billedAmountCents: null, knownBenefitCents: corrected.benefits.privateInsurerCents, sourceEmailId: id, sourceLocator: null, isFictional: fictional }]),
+        ...(corrected.insurance.expectedPatientOutOfPocketCents === null ? [] : [{ quoteId: extraction.quoteId, category: "OTHER" as const, description: "Patient amount stated in reviewed email", payer: "PATIENT" as const, billedAmountCents: null, patientResponsibilityCents: corrected.insurance.expectedPatientOutOfPocketCents, sourceEmailId: id, sourceLocator: null, isFictional: fictional }]),
       ] });
       const mismatch = arithmeticMismatch(corrected);
       await tx.quote.update({ where: { id: extraction.quoteId }, data: { completeness: corrected.missingFees.length || mismatch ? "INCOMPLETE" : "COMPLETE", expiryDate: expiryDate(extraction.emailMessage.receivedAt ?? extraction.emailMessage.createdAt, corrected.provider.validityDays), confirmationStatus: "PROVIDER_STATED", financialEvidenceConfirmedAt: null, financialEvidenceNote: null, notes: "Patient-reviewed extraction. Original source email and extraction evidence are retained; provider figures are not independently verified." } });

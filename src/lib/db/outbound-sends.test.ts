@@ -17,6 +17,9 @@ import { classifyQuoteResponse, ingestInboundEmail, safeEmailText, simulateProvi
 import { responseTemplates } from "../email/simulator-templates";
 import { verifyResendWebhook } from "../email/resend-webhook";
 import { emailSimulatorAllowed } from "../email/dev-simulator-gate";
+import { mockQuoteFixtures } from "../ai/mock-quote-fixtures";
+import { saveQuoteCorrection } from "./quote-extraction";
+import { loadComparison } from "../comparison/data";
 
 let directory: string;
 let db: DatabaseClient;
@@ -53,7 +56,7 @@ beforeAll(async () => {
   db = createTestDatabaseClient(`file:${file}`);
 });
 
-beforeEach(async () => { await seedDemoData(db); });
+beforeEach(async () => { process.env.AI_PROVIDER = "mock"; await seedDemoData(db); });
 
 afterAll(async () => { await db?.$disconnect(); if (directory) await rm(directory, { recursive: true, force: true }); });
 
@@ -206,6 +209,39 @@ describe("outbound quote requests with a mocked transport", () => {
     }, { eventId: "wrong-provider-event", client: db });
     expect(result.status).toBe("PROVIDER_MISMATCH");
     expect(await db.emailMessage.findUniqueOrThrow({ where: { externalMessageId: "wrong-provider-test" } })).toMatchObject({ caseId: null, providerId: null, matchStatus: "PROVIDER_MISMATCH" });
+  });
+
+  it("extracts and reviews synthetic case data received through real transport, retaining actual email provenance", async () => {
+    const { provider, draft } = await prepareApprovedTestPractice();
+    await sendApprovedRequests(DEMO_CASE_ID, true, { client: db, service: new MockEmailService(), configuration });
+    const attempt = await db.outboundSend.findUniqueOrThrow({ where: { quoteRequestId: draft.id } });
+    // An edit to the catalogue must not change the sender approved for this thread.
+    await db.provider.update({ where: { id: provider.id }, data: { email: "changed@controlled.test" } });
+    const fixture = mockQuoteFixtures.find((item) => item.id === "complete-clear")!;
+    const reply = { providerMessageId: "real-transport-synthetic-reply", from: testAddress, to: [attempt.replyToEmail], receivedFor: [], subject: "Synthetic quote", text: fixture.body, html: null, receivedAt: new Date(), headers: null, attachments: [] };
+    const result = await ingestInboundEmail(reply, { eventId: "real-transport-event", client: db });
+    expect(result).toMatchObject({ status: "MATCHED", extractionStatus: "COMPLETE" });
+    const message = await db.emailMessage.findUniqueOrThrow({ where: { id: result.emailMessageId! } });
+    expect(message).toMatchObject({ isSimulation: false, deliveryStatus: "RECEIVED", providerId: provider.id });
+    const quote = await db.quote.findFirstOrThrow({ where: { sourceEmailId: message.id }, include: { lineItems: true } });
+    expect(quote.isFictional).toBe(true);
+    expect(quote.lineItems.length).toBeGreaterThan(0);
+    expect(quote.lineItems.every((item) => item.isFictional)).toBe(true);
+    expect((await loadComparison(DEMO_CASE_ID, db))?.groups.some((group) => group.current.quote.id === quote.id)).toBe(true);
+    await expect(saveQuoteCorrection(message.id, fixture.extraction, db)).resolves.toMatchObject({ reviewedAt: expect.any(Date) });
+    expect(await ingestInboundEmail(reply, { eventId: "real-transport-duplicate", client: db, simulated: false })).toMatchObject({ status: "DUPLICATE" });
+    const changedSender = await ingestInboundEmail({ ...reply, providerMessageId: "changed-sender-reply", from: "changed@controlled.test" }, { eventId: "changed-sender-event", client: db });
+    expect(changedSender.status).toBe("PROVIDER_MISMATCH");
+  });
+
+  it("does not process real-transport replies after patient consent is withdrawn", async () => {
+    const { draft } = await prepareApprovedTestPractice();
+    await sendApprovedRequests(DEMO_CASE_ID, true, { client: db, service: new MockEmailService(), configuration });
+    const attempt = await db.outboundSend.findUniqueOrThrow({ where: { quoteRequestId: draft.id } });
+    const patientCase = await db.case.findUniqueOrThrow({ where: { id: DEMO_CASE_ID } });
+    await db.patientProfile.update({ where: { id: patientCase.patientProfileId }, data: { consentWithdrawnAt: new Date() } });
+    expect(await ingestInboundEmail({ providerMessageId: "withdrawn-consent-reply", from: testAddress, to: [attempt.replyToEmail], receivedFor: [], subject: "Synthetic reply", text: mockQuoteFixtures[0].body, html: null, receivedAt: new Date(), headers: null, attachments: [] }, { eventId: "withdrawn-consent-event", client: db })).toMatchObject({ status: "PROVIDER_MISMATCH" });
+    expect(await db.quoteExtraction.count({ where: { emailMessage: { externalMessageId: "withdrawn-consent-reply" } } })).toBe(0);
   });
 
   it("does not associate messages by matching subject alone", async () => {

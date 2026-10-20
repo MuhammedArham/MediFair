@@ -13,6 +13,9 @@ describe("workspace safety and fixture integration", () => {
     expect(status.emailMissing).toContain("RESEND_FROM_EMAIL"); expect(status.aiMissing).toContain("OPENAI_MODEL");
     expect(JSON.stringify(status)).not.toContain("secret");
     expect(serviceStatus({ NODE_ENV: "test", EMAIL_TRANSPORT: "typo" }).valid).toBe(false);
+    const restricted = serviceStatus({ NODE_ENV: "test", EMAIL_TRANSPORT: "resend", RESEND_FROM_EMAIL: "onboarding@resend.dev" });
+    expect(restricted.emailTestMode).toBe(true);
+    expect(restricted.emailMissing).toContain("RESEND_TEST_RECIPIENT");
   });
   it("denies deployment and public-host simulator access", () => {
     const development = { NODE_ENV: "development", DEMO_MODE: "true", EMAIL_TRANSPORT: "mock" } as NodeJS.ProcessEnv;

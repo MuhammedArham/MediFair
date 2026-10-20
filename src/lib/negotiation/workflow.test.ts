@@ -13,7 +13,7 @@ import { loadComparison } from "../comparison/data";
 import { loadReviewPage, saveReviewPreferences } from "../opportunities/service";
 import { assertNegotiationTransition, closeNegotiation, decideNegotiationRequest, editNegotiationDraft, sendNegotiationRequest, startOpportunityNegotiation } from "./service";
 import { negotiationResponseTemplates, OpenAINegotiationResponseProvider } from "./response-provider";
-import { revisedQuoteIsComparable } from "./processing";
+import { processNegotiationReply, revisedQuoteIsComparable } from "./processing";
 import { mockQuoteFixtures } from "../ai/mock-quote-fixtures";
 import { draftNegotiationRequest } from "./templates";
 import { ResendEmailService } from "../email/email-service";
@@ -48,6 +48,18 @@ async function sendB() {
 const template = (id: string) => negotiationResponseTemplates.find((item) => item.id === id)!;
 
 describe("negotiation workflow", () => {
+  it("interprets a synthetic response received by real email without mislabelling its delivery", async () => {
+    const negotiation = await sendB();
+    const message = await db.emailMessage.create({ data: {
+      caseId: "demo-case", providerId: negotiation.providerId, negotiationId: negotiation.id,
+      direction: "INBOUND", subject: "Synthetic response", body: template("refuses").body,
+      isSimulation: false, matchStatus: "MATCHED", deliveryStatus: "RECEIVED", receivedAt: new Date(),
+    } });
+    const result = await processNegotiationReply(message.id, db);
+    expect(result).toMatchObject({ providerMode: "MOCK_AI", interpretationStatus: "COMPLETE" });
+    expect((await db.negotiation.findUniqueOrThrow({ where: { id: negotiation.id } })).status).toBe("REJECTED");
+    expect((await db.emailMessage.findUniqueOrThrow({ where: { id: message.id } })).isSimulation).toBe(false);
+  });
   it("defines explicit transitions for all requested states and rejects shortcuts", () => {
     const transitions = [
       ["DRAFT", "AWAITING_APPROVAL"], ["AWAITING_APPROVAL", "SIMULATED_SENT"], ["AWAITING_APPROVAL", "SENT"],

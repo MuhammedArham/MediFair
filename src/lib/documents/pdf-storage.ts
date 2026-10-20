@@ -78,21 +78,20 @@ const localStorage: PrivateDocumentStorage = {
   async delete(key) { await unlink(join(await storageRoot(), key)); },
 };
 
+// The SDK resolves rotating Vercel OIDC credentials with BLOB_STORE_ID, or a
+// legacy BLOB_READ_WRITE_TOKEN. Authentication failures never select local storage.
 const blobStorage: PrivateDocumentStorage = {
   async write(bytes) {
-    if (!process.env.BLOB_READ_WRITE_TOKEN) throw new DocumentUploadError("Private Blob storage is not configured.");
     const key = `${randomUUID()}.pdf`;
     await put(`documents/${key}`, Buffer.from(bytes), { access: "private", addRandomSuffix: false, contentType: "application/pdf" });
     return key;
   },
   async read(key) {
-    if (!process.env.BLOB_READ_WRITE_TOKEN) throw new DocumentUploadError("Private Blob storage is not configured.");
     const result = await get(`documents/${key}`, { access: "private" });
     if (!result || result.statusCode !== 200) throw new DocumentUploadError("Document unavailable.");
     return new Uint8Array(await new Response(result.stream).arrayBuffer());
   },
   async delete(key) {
-    if (!process.env.BLOB_READ_WRITE_TOKEN) throw new DocumentUploadError("Private Blob storage is not configured.");
     await del(`documents/${key}`);
   },
 };

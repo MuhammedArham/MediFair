@@ -13,16 +13,29 @@ export class AIConfigurationError extends Error {
   constructor(message: string) { super(message); this.name = "AIConfigurationError"; }
 }
 
+function fixtureText(value: string) {
+  return value.replace(/\r\n?/g, "\n").replace(/^SIMULATED PROVIDER RESPONSE —\s*/, "").replace(/\s+/g, " ").trim();
+}
+
 export class MockAIProvider implements AIProvider {
   async extractQuote(input: QuoteEmailInput): Promise<ExtractionResult> {
     const id = input.body.match(/\[\[MOCK_QUOTE_FIXTURE:([a-z0-9-]+)\]\]/i)?.[1];
-    const fixture = mockQuoteFixtures.find((item) => item.id === id);
+    const canonical = fixtureText(input.body);
+    const genericMarker = /^\[\[MOCK_QUOTE_FIXTURE\]\](?:\s|$)/.test(canonical);
+    const expectedText = (body: string) => {
+      const text = fixtureText(body);
+      return genericMarker ? text.replace(/^\[\[MOCK_QUOTE_FIXTURE:[a-z0-9-]+\]\]/, "[[MOCK_QUOTE_FIXTURE]]") : text;
+    };
+    // Email clients may wrap paragraphs or lose the identifier in a copied
+    // marker. Accept that explicit demo format only when the ENTIRE remaining
+    // text matches exactly one checked-in fixture. Never infer unfamiliar text.
+    const candidates = mockQuoteFixtures.filter((item) => id ? item.id === id : genericMarker && canonical === expectedText(item.body));
+    const fixture = candidates.length === 1 ? candidates[0] : undefined;
     if (!fixture) return { providerMode: "MOCK_AI", status: "UNSUPPORTED", extraction: null, message: "This message does not match a supported synthetic fixture. Manual review is required; no amounts were inferred." };
-    const canonical = input.body.replace(/\r\n?/g, "\n").replace(/^SIMULATED PROVIDER RESPONSE —\s*/, "").trim();
-    if (canonical !== fixture.body.trim()) return { providerMode: "MOCK_AI", status: "UNSUPPORTED", extraction: null, message: "This synthetic fixture was edited. Manual review is required; no amounts were inferred." };
-    const source = input.body.toLocaleLowerCase();
+    if (canonical !== expectedText(fixture.body)) return { providerMode: "MOCK_AI", status: "UNSUPPORTED", extraction: null, message: "This synthetic fixture was edited. Manual review is required; no amounts were inferred." };
+    const source = canonical.toLocaleLowerCase();
     const excerpts = [...fixture.extraction.evidence.map((item) => item.excerpt), ...fixture.extraction.fees.flatMap((item) => item.evidence ? [item.evidence] : [])];
-    if (excerpts.some((excerpt) => !source.includes(excerpt.toLocaleLowerCase()))) return { providerMode: "MOCK_AI", status: "UNSUPPORTED", extraction: null, message: "Fixture marker was present, but its supporting text does not match the edited email. Manual review is required." };
+    if (excerpts.some((excerpt) => !source.includes(fixtureText(excerpt).toLocaleLowerCase()))) return { providerMode: "MOCK_AI", status: "UNSUPPORTED", extraction: null, message: "Fixture marker was present, but its supporting text does not match the edited email. Manual review is required." };
     const parsed = quoteExtractionSchema.safeParse(fixture.extraction);
     if (!parsed.success) return { providerMode: "MOCK_AI", status: "UNSUPPORTED", extraction: null, message: "The synthetic extraction fixture failed schema validation. Manual review is required." };
     return { providerMode: "MOCK_AI", status: "COMPLETE", extraction: parsed.data, message: `Simulated extraction using the ${fixture.label.toLowerCase()} fixture.` };
